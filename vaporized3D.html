@@ -344,28 +344,6 @@
     padding: 5px 10px;
     border-radius: 5px;
   }
-
-  /* Play button overlay for videos */
-  #playOverlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 10006;
-  }
-  
-  #playButton {
-    padding: 20px 40px;
-    font-size: 24px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    font-weight: bold;
-  }
 </style>
 </head>
 <body>
@@ -373,11 +351,6 @@
   <div id="loading">
     <div class="spinner"></div>
     <div>Loading Vaporized Experience...</div>
-  </div>
-
-  <!-- Play Overlay (fallback for autoplay issues) -->
-  <div id="playOverlay">
-    <button id="playButton">Click to Start Experience</button>
   </div>
 
   <!-- VR Mode Toggle -->
@@ -422,14 +395,14 @@
 
   <!-- Video Containers - SEPARATE from starwars-intro -->
   <div id="video-container">
-    <video id="intro-video" preload="auto" muted playsinline webkit-playsinline>
+    <video id="intro-video" preload="auto" muted playsinline>
       <source src="assets/00_intro_1080p24.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
   </div>
   
   <div id="next-video-container">
-    <video id="next-video" preload="auto" muted playsinline webkit-playsinline>
+    <video id="next-video" preload="auto" muted playsinline>
       <source src="assets/01_parking_offer_1080p24.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
@@ -508,8 +481,6 @@
   const positiveConsequence = document.getElementById('positiveConsequence');
   const negativeContinue = document.getElementById('negativeContinue');
   const positiveContinue = document.getElementById('positiveContinue');
-  const playOverlay = document.getElementById('playOverlay');
-  const playButton = document.getElementById('playButton');
   
   // Video containers - NOW SEPARATE
   const videoContainer = document.getElementById('video-container');
@@ -526,7 +497,7 @@
   let transitionTriggered = false;
   let musicPlaying = false;
   let audioInitialized = false;
-  let videoAttempted = false;
+  let videosPreloaded = false;
 
   // -------- Utils ----------
   function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
@@ -582,6 +553,37 @@
     }
   }
 
+  // -------- VIDEO PRELOADING ----------
+  function preloadVideos() {
+    if (videosPreloaded) return;
+    
+    console.log('📹 Preloading videos...');
+    
+    // Force videos to load by setting currentTime to 0 and loading
+    introVideo.load();
+    nextVideo.load();
+    
+    // Set up canplay event listeners
+    introVideo.addEventListener('canplay', function() {
+      console.log('✅ Intro video ready to play');
+    });
+    
+    nextVideo.addEventListener('canplay', function() {
+      console.log('✅ Next video ready to play');
+    });
+    
+    // Set up error handling
+    introVideo.addEventListener('error', function(e) {
+      console.error('❌ Intro video error:', e);
+    });
+    
+    nextVideo.addEventListener('error', function(e) {
+      console.error('❌ Next video error:', e);
+    });
+    
+    videosPreloaded = true;
+  }
+
   // -------- VR EXPERIENCE LINKING ----------
   function showVRExperienceButton() {
     vrExperience.style.display = 'block';
@@ -617,18 +619,8 @@
     audioInitialized = true;
     introMusic.volume = 0.7;
     
-    // Try to play music immediately
-    const playMusic = () => {
-      introMusic.play().then(() => {
-        musicPlaying = true;
-        console.log("✅ Intro music playing successfully");
-      }).catch((error) => {
-        console.log("❌ Music autoplay blocked:", error);
-        // Music will play when videos play due to user interaction
-      });
-    };
-    
-    playMusic();
+    // Don't try to play music automatically - it will block video autoplay
+    console.log("🎵 Audio initialized (will play with videos)");
   }
   
   function stopIntroMusic() {
@@ -640,13 +632,21 @@
     }
   }
   
+  function playIntroMusic() {
+    if (!musicPlaying) {
+      introMusic.play().then(() => {
+        musicPlaying = true;
+        console.log("✅ Intro music playing");
+      }).catch(e => {
+        console.log("❌ Music play failed:", e);
+      });
+    }
+  }
+  
   function transitionToIntroVideo() {
     if (!transitionTriggered) {
       transitionTriggered = true;
       console.log('Star Wars intro completed - transitioning to intro video');
-      
-      // STOP THE MUSIC FIRST
-      stopIntroMusic();
       
       // Hide star wars intro
       starwarsIntro.style.display = 'none';
@@ -656,14 +656,13 @@
       videoContainer.style.visibility = 'visible';
       sceneProgress.textContent = 'Scene 2/3';
       
-      // Reset video and attempt to play
-      introVideo.currentTime = 0;
+      // Try to play the video immediately
+      console.log('🎬 Attempting to play intro video...');
       
-      // Try to play video immediately
       const playVideo = () => {
-        console.log('Attempting to play intro video...');
         introVideo.play().then(() => {
           console.log('✅ Intro video playing successfully');
+          playIntroMusic(); // Start music when video plays
           
           // Set up ended listener
           introVideo.addEventListener('ended', function onIntroEnded() {
@@ -675,27 +674,28 @@
         }).catch((error) => {
           console.log('❌ Intro video autoplay failed:', error);
           
-          // Show play overlay as fallback
-          playOverlay.style.display = 'flex';
-          playButton.onclick = () => {
-            playOverlay.style.display = 'none';
-            introVideo.play().then(() => {
-              console.log('✅ Intro video playing after user interaction');
-            });
-          };
-          
-          // Auto-skip after 3 seconds if no interaction
+          // Try one more time with a small delay
           setTimeout(() => {
-            if (playOverlay.style.display === 'flex') {
-              console.log('Auto-skipping intro video due to playback issues');
-              playOverlay.style.display = 'none';
-              transitionToNextScene();
-            }
-          }, 3000);
+            introVideo.play().then(() => {
+              console.log('✅ Intro video playing on second attempt');
+              playIntroMusic();
+              
+              introVideo.addEventListener('ended', function onIntroEnded() {
+                console.log('Intro video completed - transitioning to parking lot scene');
+                introVideo.removeEventListener('ended', onIntroEnded);
+                transitionToNextScene();
+              }, { once: true });
+              
+            }).catch((error2) => {
+              console.log('❌ Second attempt failed, auto-skipping to next scene:', error2);
+              // Auto-skip to next scene if video can't play
+              setTimeout(transitionToNextScene, 100);
+            });
+          }, 500);
         });
       };
       
-      // Small delay to ensure video is ready
+      // Small delay to ensure video container is visible
       setTimeout(playVideo, 100);
     }
   }
@@ -706,18 +706,15 @@
     // Hide intro video
     videoContainer.style.opacity = '0';
     videoContainer.style.visibility = 'hidden';
-    playOverlay.style.display = 'none';
     
     // Show and play next video
     nextVideoContainer.style.opacity = '1';
     nextVideoContainer.style.visibility = 'visible';
     sceneProgress.textContent = 'Scene 3/3';
     
-    // Reset video and attempt to play
-    nextVideo.currentTime = 0;
+    console.log('🎬 Attempting to play next video...');
     
     const playNextVideo = () => {
-      console.log('Attempting to play next video...');
       nextVideo.play().then(() => {
         console.log('✅ Next video playing successfully');
         
@@ -734,32 +731,33 @@
       }).catch((error) => {
         console.log('❌ Next video autoplay failed:', error);
         
-        // Show play overlay as fallback
-        playOverlay.style.display = 'flex';
-        playButton.textContent = 'Continue to Choice';
-        playButton.onclick = () => {
-          playOverlay.style.display = 'none';
-          nextVideoContainer.style.opacity = '0';
-          nextVideoContainer.style.visibility = 'hidden';
-          sceneProgress.style.display = 'none';
-          showChoice();
-        };
-        
-        // Auto-skip after 3 seconds if no interaction
+        // Try one more time with a small delay
         setTimeout(() => {
-          if (playOverlay.style.display === 'flex') {
-            console.log('Auto-skipping to choice due to playback issues');
-            playOverlay.style.display = 'none';
+          nextVideo.play().then(() => {
+            console.log('✅ Next video playing on second attempt');
+            
+            nextVideo.addEventListener('ended', function onNextEnded() {
+              console.log('Parking lot scene completed - showing choice interface');
+              nextVideo.removeEventListener('ended', onNextEnded);
+              nextVideoContainer.style.opacity = '0';
+              nextVideoContainer.style.visibility = 'hidden';
+              sceneProgress.style.display = 'none';
+              showChoice();
+            }, { once: true });
+            
+          }).catch((error2) => {
+            console.log('❌ Second attempt failed, auto-skipping to choice:', error2);
+            // Auto-skip to choice if video can't play
             nextVideoContainer.style.opacity = '0';
             nextVideoContainer.style.visibility = 'hidden';
             sceneProgress.style.display = 'none';
             showChoice();
-          }
-        }, 3000);
+          });
+        }, 500);
       });
     };
     
-    // Small delay to ensure video is ready
+    // Small delay to ensure video container is visible
     setTimeout(playNextVideo, 100);
   }
 
@@ -871,6 +869,9 @@
     try {
       // DEBUG: Check if assets are accessible
       await debugAssetPaths();
+      
+      // Preload videos during the Star Wars intro
+      preloadVideos();
       
       // Initialize the working Star Wars intro
       createStarfield();
