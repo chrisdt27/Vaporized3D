@@ -8,12 +8,6 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<!-- Preload critical assets -->
-<link rel="preload" href="assets/audio/intro.mp3" as="audio">
-<link rel="preload" href="assets/audio/reward_cheer.mp3" as="audio">
-<link rel="preload" href="assets/audio/sad_crowd.mp3" as="audio">
-<link rel="preload" href="assets/00_intro_1080p24.mp4" as="video">
-<link rel="preload" href="assets/01_parking_offer_1080p24.mp4" as="video">
 <style>
   :root {
     --bg:#000; --fg:#fff; --muted:#bbb;
@@ -350,6 +344,28 @@
     padding: 5px 10px;
     border-radius: 5px;
   }
+
+  /* Play button overlay for videos */
+  #playOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10006;
+  }
+  
+  #playButton {
+    padding: 20px 40px;
+    font-size: 24px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
@@ -357,6 +373,11 @@
   <div id="loading">
     <div class="spinner"></div>
     <div>Loading Vaporized Experience...</div>
+  </div>
+
+  <!-- Play Overlay (fallback for autoplay issues) -->
+  <div id="playOverlay">
+    <button id="playButton">Click to Start Experience</button>
   </div>
 
   <!-- VR Mode Toggle -->
@@ -401,14 +422,14 @@
 
   <!-- Video Containers - SEPARATE from starwars-intro -->
   <div id="video-container">
-    <video id="intro-video" preload="auto" muted playsinline>
+    <video id="intro-video" preload="auto" muted playsinline webkit-playsinline>
       <source src="assets/00_intro_1080p24.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
   </div>
   
   <div id="next-video-container">
-    <video id="next-video" preload="auto" muted playsinline>
+    <video id="next-video" preload="auto" muted playsinline webkit-playsinline>
       <source src="assets/01_parking_offer_1080p24.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
@@ -487,6 +508,8 @@
   const positiveConsequence = document.getElementById('positiveConsequence');
   const negativeContinue = document.getElementById('negativeContinue');
   const positiveContinue = document.getElementById('positiveContinue');
+  const playOverlay = document.getElementById('playOverlay');
+  const playButton = document.getElementById('playButton');
   
   // Video containers - NOW SEPARATE
   const videoContainer = document.getElementById('video-container');
@@ -503,6 +526,7 @@
   let transitionTriggered = false;
   let musicPlaying = false;
   let audioInitialized = false;
+  let videoAttempted = false;
 
   // -------- Utils ----------
   function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
@@ -593,16 +617,18 @@
     audioInitialized = true;
     introMusic.volume = 0.7;
     
-    introMusic.play().then(() => {
-      musicPlaying = true;
-      console.log("✅ Intro music playing successfully");
-    }).catch(() => {
-      console.log("❌ Autoplay blocked, will play on interaction");
-      document.addEventListener('click', function enableAudio() {
-        introMusic.play();
-        document.removeEventListener('click', enableAudio);
+    // Try to play music immediately
+    const playMusic = () => {
+      introMusic.play().then(() => {
+        musicPlaying = true;
+        console.log("✅ Intro music playing successfully");
+      }).catch((error) => {
+        console.log("❌ Music autoplay blocked:", error);
+        // Music will play when videos play due to user interaction
       });
-    });
+    };
+    
+    playMusic();
   }
   
   function stopIntroMusic() {
@@ -630,46 +656,47 @@
       videoContainer.style.visibility = 'visible';
       sceneProgress.textContent = 'Scene 2/3';
       
-      // Ensure video is properly loaded and ready to play
-      introVideo.muted = true;
+      // Reset video and attempt to play
+      introVideo.currentTime = 0;
       
-      // Add event listeners first
-      introVideo.addEventListener('loadeddata', function onVideoLoaded() {
-        console.log('Intro video loaded, attempting to play');
+      // Try to play video immediately
+      const playVideo = () => {
+        console.log('Attempting to play intro video...');
         introVideo.play().then(() => {
-          console.log('Intro video playing successfully');
-          setTimeout(() => introVideo.muted = false, 100);
-        }).catch(error => {
-          console.error('Failed to play intro video:', error);
-          // Fallback: Skip to next scene if video fails
-          console.log('Falling back to next scene due to video error');
-          setTimeout(transitionToNextScene, 1000);
+          console.log('✅ Intro video playing successfully');
+          
+          // Set up ended listener
+          introVideo.addEventListener('ended', function onIntroEnded() {
+            console.log('Intro video completed - transitioning to parking lot scene');
+            introVideo.removeEventListener('ended', onIntroEnded);
+            transitionToNextScene();
+          }, { once: true });
+          
+        }).catch((error) => {
+          console.log('❌ Intro video autoplay failed:', error);
+          
+          // Show play overlay as fallback
+          playOverlay.style.display = 'flex';
+          playButton.onclick = () => {
+            playOverlay.style.display = 'none';
+            introVideo.play().then(() => {
+              console.log('✅ Intro video playing after user interaction');
+            });
+          };
+          
+          // Auto-skip after 3 seconds if no interaction
+          setTimeout(() => {
+            if (playOverlay.style.display === 'flex') {
+              console.log('Auto-skipping intro video due to playback issues');
+              playOverlay.style.display = 'none';
+              transitionToNextScene();
+            }
+          }, 3000);
         });
-        
-        // Remove this listener after it fires
-        introVideo.removeEventListener('loadeddata', onVideoLoaded);
-      });
+      };
       
-      introVideo.addEventListener('error', function(e) {
-        console.error('Intro video error:', e);
-        // Fallback: Skip to next scene if video fails
-        console.log('Video error detected, falling back to next scene');
-        setTimeout(transitionToNextScene, 1000);
-      });
-      
-      introVideo.addEventListener('ended', function() {
-        console.log('Intro video completed - transitioning to parking lot scene');
-        transitionToNextScene();
-      });
-      
-      // Try to play the video
-      introVideo.play().then(() => {
-        console.log('Intro video playing successfully');
-        setTimeout(() => introVideo.muted = false, 100);
-      }).catch(error => {
-        console.log('Initial play failed, waiting for user interaction:', error);
-        // Video will play when user interacts due to the loadeddata listener
-      });
+      // Small delay to ensure video is ready
+      setTimeout(playVideo, 100);
     }
   }
   
@@ -679,61 +706,61 @@
     // Hide intro video
     videoContainer.style.opacity = '0';
     videoContainer.style.visibility = 'hidden';
+    playOverlay.style.display = 'none';
     
     // Show and play next video
     nextVideoContainer.style.opacity = '1';
     nextVideoContainer.style.visibility = 'visible';
     sceneProgress.textContent = 'Scene 3/3';
     
-    nextVideo.muted = true;
+    // Reset video and attempt to play
+    nextVideo.currentTime = 0;
     
-    // Add event listeners for next video
-    nextVideo.addEventListener('loadeddata', function onNextVideoLoaded() {
-      console.log('Next video loaded, attempting to play');
+    const playNextVideo = () => {
+      console.log('Attempting to play next video...');
       nextVideo.play().then(() => {
-        console.log('Next video playing successfully');
-        setTimeout(() => nextVideo.muted = false, 100);
-      }).catch(error => {
-        console.error('Failed to play next video:', error);
-        // Fallback: Skip to choice if video fails
-        console.log('Falling back to choice screen due to video error');
-        nextVideoContainer.style.opacity = '0';
-        nextVideoContainer.style.visibility = 'hidden';
-        sceneProgress.style.display = 'none';
-        showChoice();
+        console.log('✅ Next video playing successfully');
+        
+        // Set up ended listener
+        nextVideo.addEventListener('ended', function onNextEnded() {
+          console.log('Parking lot scene completed - showing choice interface');
+          nextVideo.removeEventListener('ended', onNextEnded);
+          nextVideoContainer.style.opacity = '0';
+          nextVideoContainer.style.visibility = 'hidden';
+          sceneProgress.style.display = 'none';
+          showChoice();
+        }, { once: true });
+        
+      }).catch((error) => {
+        console.log('❌ Next video autoplay failed:', error);
+        
+        // Show play overlay as fallback
+        playOverlay.style.display = 'flex';
+        playButton.textContent = 'Continue to Choice';
+        playButton.onclick = () => {
+          playOverlay.style.display = 'none';
+          nextVideoContainer.style.opacity = '0';
+          nextVideoContainer.style.visibility = 'hidden';
+          sceneProgress.style.display = 'none';
+          showChoice();
+        };
+        
+        // Auto-skip after 3 seconds if no interaction
+        setTimeout(() => {
+          if (playOverlay.style.display === 'flex') {
+            console.log('Auto-skipping to choice due to playback issues');
+            playOverlay.style.display = 'none';
+            nextVideoContainer.style.opacity = '0';
+            nextVideoContainer.style.visibility = 'hidden';
+            sceneProgress.style.display = 'none';
+            showChoice();
+          }
+        }, 3000);
       });
-      
-      // Remove this listener after it fires
-      nextVideo.removeEventListener('loadeddata', onNextVideoLoaded);
-    });
+    };
     
-    nextVideo.addEventListener('error', function(e) {
-      console.error('Next video error:', e);
-      // Fallback: Skip to choice if video fails
-      console.log('Next video error detected, falling back to choice screen');
-      nextVideoContainer.style.opacity = '0';
-      nextVideoContainer.style.visibility = 'hidden';
-      sceneProgress.style.display = 'none';
-      showChoice();
-    });
-    
-    nextVideo.addEventListener('ended', function() {
-      console.log('Parking lot scene completed - showing choice interface');
-      // Hide everything and show choice
-      nextVideoContainer.style.opacity = '0';
-      nextVideoContainer.style.visibility = 'hidden';
-      sceneProgress.style.display = 'none';
-      showChoice();
-    });
-    
-    // Try to play the next video
-    nextVideo.play().then(() => {
-      console.log('Next video playing successfully');
-      setTimeout(() => nextVideo.muted = false, 100);
-    }).catch(error => {
-      console.log('Initial next video play failed, waiting for user interaction:', error);
-      // Video will play when user interacts due to the loadeddata listener
-    });
+    // Small delay to ensure video is ready
+    setTimeout(playNextVideo, 100);
   }
 
   // -------- AUDIO FEEDBACK ----------
