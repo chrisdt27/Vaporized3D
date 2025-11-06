@@ -407,40 +407,57 @@
   // -------- CORRECTED Paths ----------
   const INTRO      = 'assets/00_intro_1080p24.mp4';
   const PARKING    = 'assets/01_parking_offer_1080p24.mp4';
-  const TO_VR      = 'journeys/mouth_Oculus.html'; // FIXED PATH
+  const TO_VR      = 'journeys/mouth_Oculus.html';
   const TO_CLASSROOM = '../vape_on_the_brain_vr/Classroom/classroom_scene.html';
 
-  // -------- DOM ----------
-  const vid     = document.getElementById('vid');
-  const choice  = document.getElementById('choice');
-  const fadeEl  = document.getElementById('fade');
-  const errEl   = document.getElementById('err');
-  const btnVR   = document.getElementById('btnVR');
-  const btnNo   = document.getElementById('btnNo');
-  const continueBtn = document.getElementById('continueBtn');
-  const starwarsIntro = document.getElementById('starwars-intro');
-  const crawl = document.getElementById('crawl');
-  const skipIntro = document.getElementById('skipIntro');
-  const stars = document.getElementById('stars');
-  const introMusic = document.getElementById('introMusic');
-  const cheeringCrowd = document.getElementById('cheeringCrowd');
-  const sadCrowd = document.getElementById('sadCrowd');
-  const loading = document.getElementById('loading');
-  const vrToggle = document.getElementById('vrToggle');
-  const negativeConsequence = document.getElementById('negativeConsequence');
-  const positiveConsequence = document.getElementById('positiveConsequence');
-  const negativeContinue = document.getElementById('negativeContinue');
-  const positiveContinue = document.getElementById('positiveContinue');
+  // -------- DOM Elements (will be initialized after DOM loads) ----------
+  let vid, choice, fadeEl, errEl, btnVR, btnNo, continueBtn, starwarsIntro;
+  let crawl, skipIntro, stars, introMusic, cheeringCrowd, sadCrowd, loading;
+  let vrToggle, negativeConsequence, positiveConsequence, negativeContinue, positiveContinue;
 
   // -------- State ----------
   let userInteracted = false;
+  let domReady = false;
+
+  // -------- Initialize DOM Elements ----------
+  function initializeDOMElements() {
+    vid = document.getElementById('vid');
+    choice = document.getElementById('choice');
+    fadeEl = document.getElementById('fade');
+    errEl = document.getElementById('err');
+    btnVR = document.getElementById('btnVR');
+    btnNo = document.getElementById('btnNo');
+    continueBtn = document.getElementById('continueBtn');
+    starwarsIntro = document.getElementById('starwars-intro');
+    crawl = document.getElementById('crawl');
+    skipIntro = document.getElementById('skipIntro');
+    stars = document.getElementById('stars');
+    introMusic = document.getElementById('introMusic');
+    cheeringCrowd = document.getElementById('cheeringCrowd');
+    sadCrowd = document.getElementById('sadCrowd');
+    loading = document.getElementById('loading');
+    vrToggle = document.getElementById('vrToggle');
+    negativeConsequence = document.getElementById('negativeConsequence');
+    positiveConsequence = document.getElementById('positiveConsequence');
+    negativeContinue = document.getElementById('negativeContinue');
+    positiveContinue = document.getElementById('positiveContinue');
+    
+    domReady = true;
+    console.log("✅ DOM elements initialized");
+  }
 
   // -------- Utils ----------
-  function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
+  function showError(msg){ 
+    console.error(msg); 
+    if (errEl) {
+      errEl.textContent = msg; 
+      errEl.style.display='block'; 
+    }
+  }
   
   function fadeAndGo(url){ 
     console.log("🚀 Navigating to:", url);
-    fadeEl.classList.remove('hidden');
+    if (fadeEl) fadeEl.classList.remove('hidden');
     setTimeout(() => {
       try { 
         window.location.href = url; 
@@ -452,30 +469,32 @@
   
   function showChoice(){ 
     console.log("🎯 Showing choice screen");
-    choice.style.display='flex'; 
+    if (choice) choice.style.display='flex'; 
   }
   
   function hideLoading() {
     console.log("📦 Hiding loading screen");
-    loading.style.display = 'none';
-    fadeEl.classList.add('hidden');
+    if (loading) loading.style.display = 'none';
+    if (fadeEl) fadeEl.classList.add('hidden');
   }
 
   // -------- SIMPLIFIED AUDIO SYSTEM ----------
   function initializeAudio() {
+    if (!introMusic) return;
+    
     console.log("🎵 Initializing audio system...");
     
     // Set volumes
     introMusic.volume = 0.7;
-    cheeringCrowd.volume = 0.8;
-    sadCrowd.volume = 0.8;
+    if (cheeringCrowd) cheeringCrowd.volume = 0.8;
+    if (sadCrowd) sadCrowd.volume = 0.8;
     
     // Wait for user interaction to play audio
     const enableAudio = () => {
       if (!userInteracted) {
         userInteracted = true;
         console.log("✅ User interaction detected - audio enabled");
-        introMusic.play().catch(e => console.log("Audio play failed:", e));
+        if (introMusic) introMusic.play().catch(e => console.log("Audio play failed:", e));
       }
     };
     
@@ -487,6 +506,11 @@
   // -------- SIMPLIFIED VIDEO PLAYBACK ----------
   function playVideo(src) {
     return new Promise((resolve, reject) => {
+      if (!vid) {
+        reject(new Error("Video element not found"));
+        return;
+      }
+      
       console.log("🎥 Playing video:", src);
       
       vid.src = src;
@@ -522,36 +546,42 @@
   // -------- CONSEQUENCE SYSTEM ----------
   function showConsequence(isNegative) {
     console.log("🎭 Showing consequence:", isNegative ? "negative" : "positive");
-    choice.style.display = 'none';
+    if (choice) choice.style.display = 'none';
     
-    if (isNegative) {
+    if (isNegative && negativeConsequence) {
       negativeConsequence.style.display = 'flex';
       playSadCrowd();
-    } else {
+    } else if (positiveConsequence) {
       positiveConsequence.style.display = 'flex';
       playCheeringCrowd();
     }
   }
 
   function playCheeringCrowd() {
-    if (userInteracted) {
+    if (userInteracted && cheeringCrowd) {
       cheeringCrowd.play().catch(e => console.log("Cheering audio failed"));
     }
   }
 
   function playSadCrowd() {
-    if (userInteracted) {
+    if (userInteracted && sadCrowd) {
       sadCrowd.play().catch(e => console.log("Sad audio failed"));
     }
   }
 
   function hideConsequences() {
-    negativeConsequence.style.display = 'none';
-    positiveConsequence.style.display = 'none';
+    if (negativeConsequence) negativeConsequence.style.display = 'none';
+    if (positiveConsequence) positiveConsequence.style.display = 'none';
   }
 
   // -------- STAR WARS INTRO ----------
   function createStarfield() {
+    if (!stars) {
+      console.log("⚠️ Stars element not found, skipping starfield");
+      return;
+    }
+    
+    console.log("⭐ Creating starfield");
     for (let i = 0; i < 200; i++) {
       const star = document.createElement('div');
       star.className = 'star';
@@ -570,15 +600,17 @@
       
       const skipHandler = () => {
         console.log("⏭️ Skipping intro");
-        starwarsIntro.style.display = 'none';
+        if (starwarsIntro) starwarsIntro.style.display = 'none';
         resolve();
       };
       
-      skipIntro.addEventListener('click', skipHandler, { once: true });
+      if (skipIntro) {
+        skipIntro.addEventListener('click', skipHandler, { once: true });
+      }
       
       // Auto-skip after 30 seconds
       setTimeout(() => {
-        if (starwarsIntro.style.display !== 'none') {
+        if (starwarsIntro && starwarsIntro.style.display !== 'none') {
           skipHandler();
         }
       }, 30000);
@@ -610,12 +642,68 @@
     }
   }
 
+  // -------- EVENT LISTENERS SETUP ----------
+  function setupEventListeners() {
+    console.log("🔗 Setting up event listeners");
+    
+    if (btnVR) {
+      btnVR.addEventListener('click', () => {
+        console.log("🚬 User chose: Take a puff");
+        showConsequence(true);
+      });
+    }
+    
+    if (btnNo) {
+      btnNo.addEventListener('click', () => {
+        console.log("✅ User chose: No thanks");  
+        showConsequence(false);
+      });
+    }
+
+    if (negativeContinue) {
+      negativeContinue.addEventListener('click', () => {
+        console.log("🔮 Continuing to VR journey (negative)");
+        hideConsequences();
+        fadeAndGo(TO_VR);
+      });
+    }
+
+    if (positiveContinue) {
+      positiveContinue.addEventListener('click', () => {
+        console.log("🔮 Continuing to VR journey (positive)");
+        hideConsequences();
+        fadeAndGo(TO_VR);
+      });
+    }
+
+    // Debug keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      console.log("⌨️ Key pressed:", e.key);
+      if (e.key === '1') showConsequence(true);
+      if (e.key === '2') showConsequence(false);
+      if (e.key === '3') fadeAndGo(TO_VR);
+      if (e.key === 'Escape') {
+        if (starwarsIntro && starwarsIntro.style.display === 'block') {
+          starwarsIntro.style.display = 'none';
+        }
+      }
+    });
+  }
+
   // -------- INITIALIZATION ----------
   async function init() {
     try {
       console.log("🎬 Initializing application");
+      
+      // Initialize DOM elements first
+      initializeDOMElements();
+      
+      // Setup audio and starfield
       initializeAudio();
       createStarfield();
+      
+      // Setup event listeners
+      setupEventListeners();
       
       // Hide loading after a brief moment
       setTimeout(hideLoading, 1500);
@@ -631,43 +719,13 @@
     }
   }
 
-  // -------- EVENT LISTENERS ----------
-  window.addEventListener('load', init);
-
-  btnVR.addEventListener('click', () => {
-    console.log("🚬 User chose: Take a puff");
-    showConsequence(true);
-  });
-  
-  btnNo.addEventListener('click', () => {
-    console.log("✅ User chose: No thanks");  
-    showConsequence(false);
-  });
-
-  negativeContinue.addEventListener('click', () => {
-    console.log("🔮 Continuing to VR journey (negative)");
-    hideConsequences();
-    fadeAndGo(TO_VR);
-  });
-
-  positiveContinue.addEventListener('click', () => {
-    console.log("🔮 Continuing to VR journey (positive)");
-    hideConsequences();
-    fadeAndGo(TO_VR);
-  });
-
-  // Debug keyboard shortcuts
-  window.addEventListener('keydown', (e) => {
-    console.log("⌨️ Key pressed:", e.key);
-    if (e.key === '1') showConsequence(true);
-    if (e.key === '2') showConsequence(false);
-    if (e.key === '3') fadeAndGo(TO_VR);
-    if (e.key === 'Escape') {
-      if (starwarsIntro.style.display === 'block') {
-        starwarsIntro.style.display = 'none';
-      }
-    }
-  });
+  // -------- START APPLICATION WHEN DOM IS READY ----------
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM is already ready
+    init();
+  }
 </script>
 </body>
 </html>
