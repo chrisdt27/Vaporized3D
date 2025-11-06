@@ -192,6 +192,18 @@
         .audio-btn:hover {
             background: rgba(255,215,0,0.2);
         }
+        
+        #audio-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #ffd700;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: 1px solid #ffd700;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
@@ -227,12 +239,13 @@
             <button id="pause-btn" class="audio-btn">Pause Music</button>
         </div>
         
+        <div id="audio-status">Click Play to start music</div>
+        
         <button id="skip-button">Skip Intro</button>
     </div>
 
-    <audio id="introMusic" loop>
-        <!-- You would replace this with your actual audio file -->
-        <source src="https://assets.codepen.io/1468070/star-wars-theme.mp3" type="audio/mpeg">
+    <audio id="introMusic" preload="auto">
+        <source src="assets/audio/intro.mp3" type="audio/mpeg">
         Your browser does not support the audio element.
     </audio>
 
@@ -244,6 +257,7 @@
         const skipButton = document.getElementById('skip-button');
         const playBtn = document.getElementById('play-btn');
         const pauseBtn = document.getElementById('pause-btn');
+        const audioStatus = document.getElementById('audio-status');
         const introMusic = document.getElementById('introMusic');
         
         // Three.js variables
@@ -317,38 +331,80 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
         
-        // Audio controls
+        // Audio controls - FIXED VERSION
         function setupAudio() {
             // Set volume
             introMusic.volume = 0.7;
             
-            // Play button
-            playBtn.addEventListener('click', () => {
-                introMusic.play().catch(e => {
-                    console.log('Audio play failed:', e);
-                    // If autoplay is blocked, show a message
-                    alert('Please interact with the page to enable audio. Click anywhere to start music.');
-                });
+            // Update audio status
+            function updateStatus() {
+                if (introMusic.paused) {
+                    audioStatus.textContent = 'Music: Paused';
+                } else {
+                    audioStatus.textContent = 'Music: Playing';
+                }
+            }
+            
+            // Play button - FIXED with better error handling
+            playBtn.addEventListener('click', async () => {
+                try {
+                    await introMusic.play();
+                    updateStatus();
+                    console.log('Music started successfully');
+                } catch (error) {
+                    console.error('Play failed:', error);
+                    audioStatus.textContent = 'Music: Error - Click again';
+                    
+                    // Try one more time with user gesture
+                    document.body.addEventListener('click', function retryPlay() {
+                        introMusic.play().then(() => {
+                            updateStatus();
+                            console.log('Music started after retry');
+                        }).catch(e => {
+                            console.error('Retry also failed:', e);
+                            audioStatus.textContent = 'Music: Failed to play';
+                        });
+                        document.body.removeEventListener('click', retryPlay);
+                    }, { once: true });
+                }
             });
             
             // Pause button
             pauseBtn.addEventListener('click', () => {
                 introMusic.pause();
+                updateStatus();
             });
             
-            // Try to autoplay with user interaction
+            // Auto-play attempt with user interaction
+            function attemptAutoplay() {
+                introMusic.play().then(() => {
+                    updateStatus();
+                    console.log('Autoplay successful');
+                }).catch(error => {
+                    console.log('Autoplay blocked, waiting for user interaction');
+                    audioStatus.textContent = 'Music: Click Play to start';
+                });
+            }
+            
+            // Try autoplay after load
+            introMusic.addEventListener('loadeddata', attemptAutoplay);
+            
+            // Also try when user interacts with page
             document.addEventListener('click', () => {
                 if (introMusic.paused) {
-                    introMusic.play().catch(e => console.log('Autoplay after interaction failed:', e));
+                    attemptAutoplay();
                 }
             }, { once: true });
             
-            // Also try autoplay after a short delay
-            setTimeout(() => {
-                if (introMusic.paused) {
-                    introMusic.play().catch(e => console.log('Delayed autoplay failed:', e));
-                }
-            }, 1000);
+            // Update status on audio events
+            introMusic.addEventListener('play', updateStatus);
+            introMusic.addEventListener('pause', updateStatus);
+            introMusic.addEventListener('ended', () => {
+                audioStatus.textContent = 'Music: Ended';
+            });
+            
+            // Initial status
+            updateStatus();
         }
         
         // Skip intro
@@ -387,7 +443,7 @@
             if (e.code === 'Space') {
                 e.preventDefault();
                 if (introMusic.paused) {
-                    introMusic.play();
+                    introMusic.play().catch(e => console.log('Play failed:', e));
                 } else {
                     introMusic.pause();
                 }
@@ -401,7 +457,22 @@
             // M to mute/unmute
             if (e.code === 'KeyM') {
                 introMusic.muted = !introMusic.muted;
+                audioStatus.textContent = introMusic.muted ? 'Music: Muted' : 'Music: Playing';
             }
+        });
+        
+        // Debug audio element
+        console.log('Audio element:', introMusic);
+        console.log('Audio source:', introMusic.src);
+        introMusic.addEventListener('error', (e) => {
+            console.error('Audio error:', e);
+            audioStatus.textContent = 'Music: File not found';
+        });
+        introMusic.addEventListener('canplay', () => {
+            console.log('Audio can play');
+        });
+        introMusic.addEventListener('loadstart', () => {
+            console.log('Audio loading started');
         });
     </script>
 </body>
