@@ -401,14 +401,16 @@
 
   <!-- Video Containers - SEPARATE from starwars-intro -->
   <div id="video-container">
-    <video id="intro-video" preload="auto" muted>
+    <video id="intro-video" preload="auto" muted playsinline>
       <source src="assets/00_intro_1080p24.mp4" type="video/mp4">
+      Your browser does not support the video tag.
     </video>
   </div>
   
   <div id="next-video-container">
-    <video id="next-video" preload="auto" muted>
+    <video id="next-video" preload="auto" muted playsinline>
       <source src="assets/01_parking_offer_1080p24.mp4" type="video/mp4">
+      Your browser does not support the video tag.
     </video>
   </div>
 
@@ -628,20 +630,45 @@
       videoContainer.style.visibility = 'visible';
       sceneProgress.textContent = 'Scene 2/3';
       
+      // Ensure video is properly loaded and ready to play
       introVideo.muted = true;
+      
+      // Add event listeners first
+      introVideo.addEventListener('loadeddata', function onVideoLoaded() {
+        console.log('Intro video loaded, attempting to play');
+        introVideo.play().then(() => {
+          console.log('Intro video playing successfully');
+          setTimeout(() => introVideo.muted = false, 100);
+        }).catch(error => {
+          console.error('Failed to play intro video:', error);
+          // Fallback: Skip to next scene if video fails
+          console.log('Falling back to next scene due to video error');
+          setTimeout(transitionToNextScene, 1000);
+        });
+        
+        // Remove this listener after it fires
+        introVideo.removeEventListener('loadeddata', onVideoLoaded);
+      });
+      
+      introVideo.addEventListener('error', function(e) {
+        console.error('Intro video error:', e);
+        // Fallback: Skip to next scene if video fails
+        console.log('Video error detected, falling back to next scene');
+        setTimeout(transitionToNextScene, 1000);
+      });
+      
+      introVideo.addEventListener('ended', function() {
+        console.log('Intro video completed - transitioning to parking lot scene');
+        transitionToNextScene();
+      });
+      
+      // Try to play the video
       introVideo.play().then(() => {
+        console.log('Intro video playing successfully');
         setTimeout(() => introVideo.muted = false, 100);
-        
-        introVideo.addEventListener('ended', function() {
-          console.log('Intro video completed - transitioning to parking lot scene');
-          transitionToNextScene();
-        });
-        
-      }).catch(() => {
-        document.addEventListener('click', function enableVideo() {
-          introVideo.play();
-          document.removeEventListener('click', enableVideo);
-        });
+      }).catch(error => {
+        console.log('Initial play failed, waiting for user interaction:', error);
+        // Video will play when user interacts due to the loadeddata listener
       });
     }
   }
@@ -659,23 +686,53 @@
     sceneProgress.textContent = 'Scene 3/3';
     
     nextVideo.muted = true;
-    nextVideo.play().then(() => {
-      setTimeout(() => nextVideo.muted = false, 100);
-      
-      nextVideo.addEventListener('ended', function() {
-        console.log('Parking lot scene completed - showing choice interface');
-        // Hide everything and show choice
+    
+    // Add event listeners for next video
+    nextVideo.addEventListener('loadeddata', function onNextVideoLoaded() {
+      console.log('Next video loaded, attempting to play');
+      nextVideo.play().then(() => {
+        console.log('Next video playing successfully');
+        setTimeout(() => nextVideo.muted = false, 100);
+      }).catch(error => {
+        console.error('Failed to play next video:', error);
+        // Fallback: Skip to choice if video fails
+        console.log('Falling back to choice screen due to video error');
         nextVideoContainer.style.opacity = '0';
         nextVideoContainer.style.visibility = 'hidden';
         sceneProgress.style.display = 'none';
         showChoice();
       });
       
-    }).catch(() => {
-      document.addEventListener('click', function enableNextVideo() {
-        nextVideo.play();
-        document.removeEventListener('click', enableNextVideo);
-      });
+      // Remove this listener after it fires
+      nextVideo.removeEventListener('loadeddata', onNextVideoLoaded);
+    });
+    
+    nextVideo.addEventListener('error', function(e) {
+      console.error('Next video error:', e);
+      // Fallback: Skip to choice if video fails
+      console.log('Next video error detected, falling back to choice screen');
+      nextVideoContainer.style.opacity = '0';
+      nextVideoContainer.style.visibility = 'hidden';
+      sceneProgress.style.display = 'none';
+      showChoice();
+    });
+    
+    nextVideo.addEventListener('ended', function() {
+      console.log('Parking lot scene completed - showing choice interface');
+      // Hide everything and show choice
+      nextVideoContainer.style.opacity = '0';
+      nextVideoContainer.style.visibility = 'hidden';
+      sceneProgress.style.display = 'none';
+      showChoice();
+    });
+    
+    // Try to play the next video
+    nextVideo.play().then(() => {
+      console.log('Next video playing successfully');
+      setTimeout(() => nextVideo.muted = false, 100);
+    }).catch(error => {
+      console.log('Initial next video play failed, waiting for user interaction:', error);
+      // Video will play when user interacts due to the loadeddata listener
     });
   }
 
