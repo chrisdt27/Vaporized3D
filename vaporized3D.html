@@ -4,16 +4,6 @@
 <meta charset="utf-8">
 <title>Vaporized — Choice System</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- WebXR Required Meta Tags -->
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<!-- Preload critical assets -->
-<link rel="preload" href="assets/audio/intro.mp3" as="audio">
-<link rel="preload" href="assets/audio/reward_cheer.mp3" as="audio">
-<link rel="preload" href="assets/audio/sad_crowd.mp3" as="audio">
-<link rel="preload" href="assets/00_intro_1080p24.mp4" as="video">
-<link rel="preload" href="assets/01_parking_offer_1080p24.mp4" as="video">
 <style>
   :root {
     --bg:#000; --fg:#fff; --muted:#bbb;
@@ -342,9 +332,9 @@
   </div>
 
   <!-- Audio Elements -->
-  <audio id="introMusic" src="assets/audio/intro.mp3" preload="auto"></audio>
-  <audio id="cheeringCrowd" src="assets/audio/reward_cheer.mp3" preload="auto"></audio>
-  <audio id="sadCrowd" src="assets/audio/sad_crowd.mp3" preload="auto"></audio>
+  <audio id="introMusic" preload="none"></audio>
+  <audio id="cheeringCrowd" preload="none"></audio>
+  <audio id="sadCrowd" preload="none"></audio>
 
   <!-- Star Wars Intro -->
   <div id="starwars-intro">
@@ -370,7 +360,7 @@
     <button id="skipIntro">Skip Intro</button>
   </div>
 
-  <!-- SINGLE VIDEO ELEMENT (like the working 2D version) -->
+  <!-- SINGLE VIDEO ELEMENT -->
   <div id="stage">
     <video id="vid" playsinline preload="auto" muted></video>
   </div>
@@ -448,8 +438,6 @@
   // -------- State ----------
   let xrSession = null;
   let isVRMode = false;
-  let cheeringAudioPlayed = false;
-  let sadAudioPlayed = false;
 
   // -------- Utils ----------
   function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
@@ -483,111 +471,50 @@
     continueBtn.style.display = 'block';
   }
 
-  // -------- AUDIO SYSTEM (FROM WORKING 2D VERSION) ----------
-  function initializeAudio() {
-    console.log("🎵 Initializing audio system...");
-    
-    // Set up both audio elements with proper attributes
-    cheeringCrowd.volume = 0.8;
-    sadCrowd.volume = 0.8;
-    introMusic.volume = 0.7;
-    introMusic.loop = true;
-    
-    // Try to play intro music immediately
-    playIntroMusic();
-  }
-
-  function playIntroMusic() {
-    console.log("🎶 Attempting to play intro music...");
-    
-    introMusic.play().then(() => {
-        console.log("✅ Intro music playing successfully");
-    }).catch(error => {
-        console.log("❌ Intro music autoplay blocked:", error);
-    });
-  }
-
-  function playCheeringCrowd() {
-    console.log("🎉 Attempting to play reward_cheer.mp3...");
-    
-    cheeringCrowd.currentTime = 0;
-    cheeringCrowd.volume = 0.8;
-    
-    cheeringCrowd.play().then(() => {
-        console.log("✅ Cheering audio playing successfully!");
-        cheeringAudioPlayed = true;
-    }).catch(error => {
-        console.log("❌ Cheering audio failed:", error);
-    });
-  }
-
-  function playSadCrowd() {
-    console.log("😢 Attempting to play sad_crowd.mp3...");
-    
-    sadCrowd.currentTime = 0;
-    sadCrowd.volume = 0.8;
-    
-    sadCrowd.play().then(() => {
-        console.log("✅ Sad crowd audio playing successfully!");
-        sadAudioPlayed = true;
-    }).catch(error => {
-        console.log("❌ Sad audio failed:", error);
-    });
-  }
-
-  function showConsequence(isNegative) {
-    if (isNegative) {
-      negativeConsequence.style.display = 'flex';
-      setTimeout(playSadCrowd, 300);
-    } else {
-      positiveConsequence.style.display = 'flex';
-      setTimeout(playCheeringCrowd, 300);
-    }
-  }
-
-  function hideConsequences() {
-    negativeConsequence.style.display = 'none';
-    positiveConsequence.style.display = 'none';
-    cheeringCrowd.pause();
-    cheeringCrowd.currentTime = 0;
-    sadCrowd.pause();
-    sadCrowd.currentTime = 0;
-    cheeringAudioPlayed = false;
-    sadAudioPlayed = false;
-  }
-
-  // -------- VIDEO SYSTEM (FROM WORKING 2D VERSION) ----------
-  function playUntilEnd(src){
-    return new Promise((resolve, reject)=>{
-      let guard=null, ended=false;
-
+  // -------- VIDEO SYSTEM (SIMPLIFIED) ----------
+  function playVideo(src) {
+    return new Promise((resolve) => {
       console.log(`🎬 Loading video: ${src}`);
-      vid.src = src;
-      vid.loop = false;
-      vid.onerror = ()=>reject(new Error('Video failed to load: ' + src));
-
-      const start = ()=>{
-        const dur = Number.isFinite(vid.duration) && vid.duration>0 ? vid.duration : 75;
-        guard = setTimeout(()=>{ if(!ended){ cleanup(); resolve(); } }, (dur+2)*1000);
-
-        vid.play()
-          .then(()=>{ 
-            console.log(`✅ Video playing: ${src}`);
-            vid.onended = ()=>{ ended=true; cleanup(); resolve(); }; 
-          })
-          .catch(err=>{ cleanup(); reject(err); });
-      };
-
-      const cleanup = ()=>{ 
-        clearTimeout(guard); 
-        vid.onended=null; 
-        vid.oncanplay=null; 
-        vid.onloadedmetadata=null; 
-      };
       
-      vid.onloadedmetadata = start;
-      vid.oncanplay = start;
-      vid.load();
+      // Create a new video element each time to avoid caching issues
+      const video = document.createElement('video');
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      video.muted = true;
+      video.playsInline = true;
+      
+      // Replace the existing video
+      const stage = document.getElementById('stage');
+      stage.innerHTML = '';
+      stage.appendChild(video);
+      
+      video.src = src;
+      
+      video.addEventListener('loadeddata', () => {
+        console.log(`✅ Video loaded: ${src}`);
+        video.play().then(() => {
+          console.log(`✅ Video playing: ${src}`);
+        }).catch(error => {
+          console.log(`❌ Video play failed: ${error}`);
+          // Continue anyway
+          setTimeout(resolve, 100);
+        });
+      });
+      
+      video.addEventListener('ended', () => {
+        console.log(`📺 Video ended: ${src}`);
+        resolve();
+      });
+      
+      video.addEventListener('error', (e) => {
+        console.log(`❌ Video error: ${src}`, e);
+        // Skip this video and continue after a delay
+        setTimeout(resolve, 2000);
+      });
+      
+      // Fallback timeout
+      setTimeout(resolve, 10000);
     });
   }
 
@@ -608,10 +535,10 @@
   function playStarWarsIntro() {
     return new Promise((resolve) => {
       const skipHandler = () => {
+        console.log('Skipping intro');
         fadeEl.classList.remove('hidden');
         setTimeout(() => {
           starwarsIntro.style.display = 'none';
-          introMusic.pause();
           fadeEl.classList.add('hidden');
           resolve();
         }, 300);
@@ -624,11 +551,8 @@
         skipHandler();
       });
       
-      setTimeout(() => {
-        if (starwarsIntro.style.display !== 'none') {
-          skipHandler();
-        }
-      }, 30000);
+      // Auto-skip after 30 seconds
+      setTimeout(skipHandler, 30000);
     });
   }
 
@@ -664,54 +588,20 @@
     return false;
   }
 
-  async function enterVR() {
-    if (!navigator.xr) {
-      showError('WebXR not supported in this browser');
-      return;
-    }
-
-    try {
-      xrSession = await navigator.xr.requestSession('immersive-vr', {
-        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
-      });
-      
-      isVRMode = true;
-      vrToggle.textContent = 'Exit VR';
-      xrSession.addEventListener('end', onXRSessionEnded);
-      showError('VR Mode Active - Full implementation requires WebGL rendering');
-      
-    } catch (e) {
-      showError('Failed to enter VR: ' + e.message);
-    }
-  }
-
-  function exitVR() {
-    if (xrSession) {
-      xrSession.end();
-    }
-  }
-
-  function onXRSessionEnded() {
-    xrSession = null;
-    isVRMode = false;
-    vrToggle.textContent = 'Enter VR';
-  }
-
   // -------- MAIN SEQUENCE ----------
-  async function startSequenceWithAudio(){
+  async function startSequence(){
     console.log("🎬 Starting video sequence...");
-    vid.muted = false;
     
     // Play Star Wars intro
     await playStarWarsIntro();
     
     // Play intro video
     sceneProgress.textContent = 'Scene 2/3';
-    await playUntilEnd(INTRO);
+    await playVideo(INTRO);
     
-    // Play parking lot video
+    // Play parking lot video  
     sceneProgress.textContent = 'Scene 3/3';
-    await playUntilEnd(PARKING);
+    await playVideo(PARKING);
     
     // Show choice interface
     sceneProgress.style.display = 'none';
@@ -722,13 +612,12 @@
   async function init() {
     try {
       console.log("🚀 Initializing Vaporized 3D...");
-      initializeAudio();
       await checkXRSupport();
       createStarfield();
       setTimeout(hideLoading, 1000);
-      await startSequenceWithAudio();
+      await startSequence();
     } catch(e) {
-      showError(e.message || String(e));
+      console.error('Init error:', e);
       hideLoading();
       starwarsIntro.style.display = 'none';
       showChoice();
@@ -739,23 +628,23 @@
   window.addEventListener('load', init);
 
   btnVR.addEventListener('click',  ()=> {
-    showConsequence(true);
+    negativeConsequence.style.display = 'flex';
     updateVRExperienceLink('negative');
   });
   
   btnNo.addEventListener('click',  ()=> {
-    showConsequence(false);
+    positiveConsequence.style.display = 'flex';
     updateVRExperienceLink('positive');
   });
 
   negativeContinue.addEventListener('click', () => {
-    hideConsequences();
+    negativeConsequence.style.display = 'none';
     fadeAndGo(TO_VR);
     setTimeout(showContinueButton, 45000);
   });
 
   positiveContinue.addEventListener('click', () => {
-    hideConsequences();
+    positiveConsequence.style.display = 'none';
     fadeAndGo(TO_VR);
     setTimeout(showContinueButton, 45000);
   });
@@ -776,18 +665,17 @@
 
   // Keyboard shortcuts
   window.addEventListener('keydown', (e)=>{
-    if(e.key==='1') showConsequence(true);
-    if(e.key==='2') showConsequence(false);
+    if(e.key==='1') {
+      negativeConsequence.style.display = 'flex';
+      updateVRExperienceLink('negative');
+    }
+    if(e.key==='2') {
+      positiveConsequence.style.display = 'flex';
+      updateVRExperienceLink('positive');
+    }
     if(e.key==='3') goToClassroom();
     if(e.key==='Escape' && starwarsIntro.style.display === 'block') {
       starwarsIntro.style.display = 'none';
-      introMusic.pause();
-    }
-    if(e.key === 'v' || e.key === 'V') {
-      if (vrToggle.style.display !== 'none') {
-        if (isVRMode) exitVR();
-        else enterVR();
-      }
     }
   });
 
@@ -797,12 +685,6 @@
       sessionStorage.removeItem('bodyJourneyCompleted');
     }
   });
-
-  window.addEventListener('deviceorientation', function(e) {
-    if (isVRMode) {
-      console.log('Device orientation:', e.alpha, e.beta, e.gamma);
-    }
-  }, true);
 </script>
 </body>
 </html>
