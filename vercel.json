@@ -1,45 +1,8 @@
-﻿{
-  "buildCommand": "git lfs install && git lfs pull",
-  "installCommand": "git lfs install",
-  "outputDirectory": ".",
-  "functions": {
-    "**/*.js": {
-      "maxDuration": 30
-    }
-  },
-  "headers": [
+{
+  "routes": [
     {
-      "source": "/(.*)\\.mp4",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "video/mp4"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)\\.glb",
-      "headers": [
-        {
-          "key": "Content-Type", 
-          "value": "model/gltf-binary"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)\\.mp3",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "audio/mpeg"
-        }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/vaporized3D.html"
+      "src": "/",
+      "dest": "/vaporized3D.html"
     }
   ]
 }
