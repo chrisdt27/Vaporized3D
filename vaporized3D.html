@@ -419,6 +419,7 @@
   const starwarsIntro = document.getElementById('starwars-intro');
   const skipIntro = document.getElementById('skipIntro');
   const introMusic = document.getElementById('introMusic');
+  const loading = document.getElementById('loading'); // ADDED THIS LINE
 
   // -------- Utils ----------
   function showError(msg){ 
@@ -436,7 +437,17 @@
     choice.style.display='flex'; 
   }
 
-  // -------- SIMPLE VIDEO PLAYBACK (From Working 2D Version) ----------
+  function hideLoading() { // ADDED THIS FUNCTION
+    console.log("Hiding loading screen");
+    if (loading) {
+      loading.style.display = 'none';
+    }
+    if (fadeEl) {
+      fadeEl.classList.add('hidden');
+    }
+  }
+
+  // -------- SIMPLE VIDEO PLAYBACK ----------
   function playVideo(src) {
     return new Promise((resolve) => {
       console.log("Playing video:", src);
@@ -471,14 +482,16 @@
       console.log("Starting Star Wars intro");
       
       // Skip on button click
-      skipIntro.addEventListener('click', () => {
-        starwarsIntro.style.display = 'none';
-        resolve();
-      }, { once: true });
+      if (skipIntro) {
+        skipIntro.addEventListener('click', () => {
+          if (starwarsIntro) starwarsIntro.style.display = 'none';
+          resolve();
+        }, { once: true });
+      }
       
       // Auto-skip after 30 seconds
       setTimeout(() => {
-        if (starwarsIntro.style.display !== 'none') {
+        if (starwarsIntro && starwarsIntro.style.display !== 'none') {
           starwarsIntro.style.display = 'none';
           resolve();
         }
@@ -489,11 +502,15 @@
   // -------- SIMPLE AUDIO ----------
   function initializeAudio() {
     console.log("Initializing audio");
-    introMusic.volume = 0.7;
+    if (introMusic) {
+      introMusic.volume = 0.7;
+    }
     
     // Enable audio on first user interaction
     const enableAudio = () => {
-      introMusic.play().catch(e => console.log("Audio play failed"));
+      if (introMusic) {
+        introMusic.play().catch(e => console.log("Audio play failed"));
+      }
     };
     
     document.addEventListener('click', enableAudio, { once: true });
@@ -503,6 +520,9 @@
   async function startSequence() {
     try {
       console.log("Starting sequence");
+      
+      // Hide loading screen FIRST
+      hideLoading();
       
       // 1. Star Wars intro
       await playStarWarsIntro();
@@ -519,6 +539,7 @@
     } catch(error) {
       console.error("Sequence error:", error);
       showError(error.message);
+      hideLoading(); // Ensure loading is hidden even on error
       showChoice(); // Show choice anyway
     }
   }
@@ -535,6 +556,7 @@
     } catch(error) {
       console.error("Init error:", error);
       showError("Init failed: " + error.message);
+      hideLoading(); // Ensure loading is hidden even on error
       showChoice();
     }
   }
@@ -542,20 +564,33 @@
   // -------- EVENT LISTENERS ----------
   window.addEventListener('load', init);
 
-  btnVR.addEventListener('click', () => {
-    fadeAndGo(TO_VR);
-  });
+  if (btnVR) {
+    btnVR.addEventListener('click', () => {
+      fadeAndGo(TO_VR);
+    });
+  }
   
-  btnNo.addEventListener('click', () => {
-    fadeAndGo(TO_VR);
-  });
+  if (btnNo) {
+    btnNo.addEventListener('click', () => {
+      fadeAndGo(TO_VR);
+    });
+  }
 
   // Skip intro with Escape key
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && starwarsIntro.style.display === 'block') {
+    if (e.key === 'Escape' && starwarsIntro && starwarsIntro.style.display === 'block') {
       starwarsIntro.style.display = 'none';
     }
   });
+
+  // Safety: Hide loading screen after 10 seconds no matter what
+  setTimeout(() => {
+    hideLoading();
+    if (starwarsIntro && starwarsIntro.style.display === 'block') {
+      starwarsIntro.style.display = 'none';
+    }
+    showChoice();
+  }, 10000);
 </script>
 </body>
 </html>
