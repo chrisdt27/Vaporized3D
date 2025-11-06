@@ -534,6 +534,28 @@
     continueBtn.style.display = 'block';
   }
 
+  // -------- Debug Functions ----------
+  async function debugAssetPaths() {
+    console.log('🔍 DEBUG: Checking if assets exist...');
+    const testAssets = [
+      'assets/00_intro_1080p24.mp4',
+      'assets/01_parking_offer_1080p24.mp4', 
+      'assets/audio/intro.mp3',
+      'assets/audio/reward_cheer.mp3',
+      'assets/audio/sad_crowd.mp3',
+      'journeys/mouth_Oculus.html'
+    ];
+    
+    for (const asset of testAssets) {
+      try {
+        const response = await fetch(asset, { method: 'HEAD' });
+        console.log(`${response.ok ? '✅' : '❌'} ${asset}: ${response.status}`);
+      } catch (error) {
+        console.log(`❌ ${asset}: ${error.message}`);
+      }
+    }
+  }
+
   // -------- VR EXPERIENCE LINKING ----------
   function showVRExperienceButton() {
     vrExperience.style.display = 'block';
@@ -763,6 +785,9 @@
   // -------- INITIALIZATION ----------
   async function init() {
     try {
+      // DEBUG: Check if assets are accessible
+      await debugAssetPaths();
+      
       // Initialize the working Star Wars intro
       createStarfield();
       initializeAudio();
