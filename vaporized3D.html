@@ -8,6 +8,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Preload critical assets -->
+<link rel="preload" href="assets/audio/intro.mp3" as="audio">
+<link rel="preload" href="assets/audio/reward_cheer.mp3" as="audio">
+<link rel="preload" href="assets/audio/sad_crowd.mp3" as="audio">
+<link rel="preload" href="assets/00_intro_1080p24.mp4" as="video">
+<link rel="preload" href="assets/01_parking_offer_1080p24.mp4" as="video">
 <style>
   :root {
     --bg:#000; --fg:#fff; --muted:#bbb;
@@ -257,35 +263,6 @@
     margin-bottom: 5vh;
   }
 
-  /* Video containers - MOVED OUTSIDE starwars-intro */
-  #video-container, #next-video-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    opacity: 0;
-    visibility: hidden;
-    z-index: 9999;
-    transition: opacity 0.5s ease-in-out;
-  }
-
-  #next-video-container {
-    z-index: 9998;
-  }
-
-  #intro-video, #next-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  #video-container.active, #next-video-container.active {
-    opacity: 1;
-    visibility: visible;
-  }
-
   /* Skip button for intro */
   #skipIntro {
     position: fixed;
@@ -393,23 +370,8 @@
     <button id="skipIntro">Skip Intro</button>
   </div>
 
-  <!-- Video Containers - SEPARATE from starwars-intro -->
-  <div id="video-container">
-    <video id="intro-video" preload="auto" muted playsinline>
-      <source src="assets/00_intro_1080p24.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
-  
-  <div id="next-video-container">
-    <video id="next-video" preload="auto" muted playsinline>
-      <source src="assets/01_parking_offer_1080p24.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
-
-  <!-- Main video stage (for fallback) -->
-  <div id="stage" style="display:none;">
+  <!-- SINGLE VIDEO ELEMENT (like the working 2D version) -->
+  <div id="stage">
     <video id="vid" playsinline preload="auto" muted></video>
   </div>
 
@@ -459,39 +421,53 @@
   const TO_CLASSROOM = '../vape_on_the_brain_vr/Classroom/classroom_scene.html';
 
   // -------- DOM ----------
-  const loading = document.getElementById('loading');
-  const fadeEl = document.getElementById('fade');
+  const vid     = document.getElementById('vid');
+  const choice  = document.getElementById('choice');
+  const fadeEl  = document.getElementById('fade');
+  const errEl   = document.getElementById('err');
+  const btnVR   = document.getElementById('btnVR');
+  const btnNo   = document.getElementById('btnNo');
+  const continueBtn = document.getElementById('continueBtn');
   const starwarsIntro = document.getElementById('starwars-intro');
   const crawlContent = document.getElementById('crawl-content');
   const skipIntro = document.getElementById('skipIntro');
   const starfield = document.getElementById('starfield');
+  const introMusic = document.getElementById('introMusic');
+  const cheeringCrowd = document.getElementById('cheeringCrowd');
+  const sadCrowd = document.getElementById('sadCrowd');
+  const loading = document.getElementById('loading');
+  const vrToggle = document.getElementById('vrToggle');
+  const vrExperience = document.getElementById('vrExperience');
+  const vrLaunch = document.getElementById('vrLaunch');
+  const negativeConsequence = document.getElementById('negativeConsequence');
+  const positiveConsequence = document.getElementById('positiveConsequence');
+  const negativeContinue = document.getElementById('negativeContinue');
+  const positiveContinue = document.getElementById('positiveContinue');
   const sceneProgress = document.getElementById('scene-progress');
-  const videoContainer = document.getElementById('video-container');
-  const introVideo = document.getElementById('intro-video');
-  const nextVideoContainer = document.getElementById('next-video-container');
-  const nextVideo = document.getElementById('next-video');
-  const choice = document.getElementById('choice');
-  const btnVR = document.getElementById('btnVR');
-  const btnNo = document.getElementById('btnNo');
 
   // -------- State ----------
-  let transitionTriggered = false;
+  let xrSession = null;
+  let isVRMode = false;
+  let cheeringAudioPlayed = false;
+  let sadAudioPlayed = false;
 
   // -------- Utils ----------
-  function showError(msg){ 
-    const errEl = document.getElementById('err');
-    console.error(msg); 
-    errEl.textContent = msg; 
-    errEl.style.display='block'; 
-  }
+  function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
   
   function fadeAndGo(url){ 
     fadeEl.classList.remove('hidden');
-    setTimeout(() => { window.location = url; }, 600); 
+    setTimeout(() => {
+      try { 
+        location.href = url; 
+      } catch { 
+        window.location = url;
+      }
+    }, 600); 
   }
   
   function showChoice(){ 
     choice.style.display='flex'; 
+    btnVR?.focus(); 
   }
   
   function hideLoading() {
@@ -503,95 +479,115 @@
     fadeAndGo(TO_CLASSROOM);
   }
 
-  // -------- VIDEO FIX: Force video playback ----------
-  function playVideo(videoElement, onEnded) {
-    return new Promise((resolve) => {
-      console.log('🎬 Attempting to play video...');
-      
-      // Reset and play
-      videoElement.currentTime = 0;
-      videoElement.play().then(() => {
-        console.log('✅ Video playing successfully');
-        
-        // Set up ended listener
-        const endedHandler = () => {
-          console.log('📺 Video ended');
-          videoElement.removeEventListener('ended', endedHandler);
-          if (onEnded) onEnded();
-          resolve();
-        };
-        
-        videoElement.addEventListener('ended', endedHandler);
-        
-      }).catch(error => {
-        console.log('❌ Video play failed:', error);
-        
-        // Try one more time after a delay
-        setTimeout(() => {
-          videoElement.play().then(() => {
-            console.log('✅ Video playing on second attempt');
-            
-            const endedHandler = () => {
-              console.log('📺 Video ended');
-              videoElement.removeEventListener('ended', endedHandler);
-              if (onEnded) onEnded();
-              resolve();
-            };
-            
-            videoElement.addEventListener('ended', endedHandler);
-            
-          }).catch(error2 => {
-            console.log('❌ Second attempt failed, skipping video:', error2);
-            // Skip this video and continue
-            if (onEnded) onEnded();
-            resolve();
-          });
-        }, 1000);
-      });
+  function showContinueButton() {
+    continueBtn.style.display = 'block';
+  }
+
+  // -------- AUDIO SYSTEM (FROM WORKING 2D VERSION) ----------
+  function initializeAudio() {
+    console.log("🎵 Initializing audio system...");
+    
+    // Set up both audio elements with proper attributes
+    cheeringCrowd.volume = 0.8;
+    sadCrowd.volume = 0.8;
+    introMusic.volume = 0.7;
+    introMusic.loop = true;
+    
+    // Try to play intro music immediately
+    playIntroMusic();
+  }
+
+  function playIntroMusic() {
+    console.log("🎶 Attempting to play intro music...");
+    
+    introMusic.play().then(() => {
+        console.log("✅ Intro music playing successfully");
+    }).catch(error => {
+        console.log("❌ Intro music autoplay blocked:", error);
     });
   }
 
-  // -------- TRANSITION FUNCTIONS ----------
-  function transitionToIntroVideo() {
-    if (!transitionTriggered) {
-      transitionTriggered = true;
-      console.log('Star Wars intro completed - transitioning to intro video');
-      
-      // Hide star wars intro
-      starwarsIntro.style.display = 'none';
-      
-      // Show video container
-      videoContainer.style.opacity = '1';
-      videoContainer.style.visibility = 'visible';
-      sceneProgress.textContent = 'Scene 2/3';
-      
-      // Play the video
-      playVideo(introVideo, () => {
-        console.log('Intro video completed - transitioning to parking lot scene');
-        transitionToNextScene();
-      });
+  function playCheeringCrowd() {
+    console.log("🎉 Attempting to play reward_cheer.mp3...");
+    
+    cheeringCrowd.currentTime = 0;
+    cheeringCrowd.volume = 0.8;
+    
+    cheeringCrowd.play().then(() => {
+        console.log("✅ Cheering audio playing successfully!");
+        cheeringAudioPlayed = true;
+    }).catch(error => {
+        console.log("❌ Cheering audio failed:", error);
+    });
+  }
+
+  function playSadCrowd() {
+    console.log("😢 Attempting to play sad_crowd.mp3...");
+    
+    sadCrowd.currentTime = 0;
+    sadCrowd.volume = 0.8;
+    
+    sadCrowd.play().then(() => {
+        console.log("✅ Sad crowd audio playing successfully!");
+        sadAudioPlayed = true;
+    }).catch(error => {
+        console.log("❌ Sad audio failed:", error);
+    });
+  }
+
+  function showConsequence(isNegative) {
+    if (isNegative) {
+      negativeConsequence.style.display = 'flex';
+      setTimeout(playSadCrowd, 300);
+    } else {
+      positiveConsequence.style.display = 'flex';
+      setTimeout(playCheeringCrowd, 300);
     }
   }
-  
-  function transitionToNextScene() {
-    console.log('Transitioning to parking lot scene');
-    
-    // Hide intro video
-    videoContainer.style.opacity = '0';
-    videoContainer.style.visibility = 'hidden';
-    
-    // Show next video container
-    nextVideoContainer.style.opacity = '1';
-    nextVideoContainer.style.visibility = 'visible';
-    sceneProgress.textContent = 'Scene 3/3';
-    
-    // Play the next video
-    playVideo(nextVideo, () => {
-      console.log('Parking lot scene completed - showing choice interface');
-      nextVideoContainer.style.opacity = '0';
-      nextVideoContainer.style.visibility = 'hidden';
-      sceneProgress.style.display = 'none';
-      showChoice();
+
+  function hideConsequences() {
+    negativeConsequence.style.display = 'none';
+    positiveConsequence.style.display = 'none';
+    cheeringCrowd.pause();
+    cheeringCrowd.currentTime = 0;
+    sadCrowd.pause();
+    sadCrowd.currentTime = 0;
+    cheeringAudioPlayed = false;
+    sadAudioPlayed = false;
+  }
+
+  // -------- VIDEO SYSTEM (FROM WORKING 2D VERSION) ----------
+  function playUntilEnd(src){
+    return new Promise((resolve, reject)=>{
+      let guard=null, ended=false;
+
+      console.log(`🎬 Loading video: ${src}`);
+      vid.src = src;
+      vid.loop = false;
+      vid.onerror = ()=>reject(new Error('Video failed to load: ' + src));
+
+      const start = ()=>{
+        const dur = Number.isFinite(vid.duration) && vid.duration>0 ? vid.duration : 75;
+        guard = setTimeout(()=>{ if(!ended){ cleanup(); resolve(); } }, (dur+2)*1000);
+
+        vid.play()
+          .then(()=>{ 
+            console.log(`✅ Video playing: ${src}`);
+            vid.onended = ()=>{ ended=true; cleanup(); resolve(); }; 
+          })
+          .catch(err=>{ cleanup(); reject(err); });
+      };
+
+      const cleanup = ()=>{ 
+        clearTimeout(guard); 
+        vid.onended=null; 
+        vid.oncanplay=null; 
+        vid.onloadedmetadata=null; 
+      };
+      
+      vid.onloadedmetadata = start;
+      vid.oncanplay = start;
+      vid.load();
     });
   }
 
@@ -609,44 +605,130 @@
     }
   }
 
+  function playStarWarsIntro() {
+    return new Promise((resolve) => {
+      const skipHandler = () => {
+        fadeEl.classList.remove('hidden');
+        setTimeout(() => {
+          starwarsIntro.style.display = 'none';
+          introMusic.pause();
+          fadeEl.classList.add('hidden');
+          resolve();
+        }, 300);
+      };
+      
+      skipIntro.addEventListener('click', skipHandler, { once: true });
+      
+      crawlContent.addEventListener('animationend', () => {
+        console.log('Crawl animation ended');
+        skipHandler();
+      });
+      
+      setTimeout(() => {
+        if (starwarsIntro.style.display !== 'none') {
+          skipHandler();
+        }
+      }, 30000);
+    });
+  }
+
+  // -------- VR EXPERIENCE LINKING ----------
+  function showVRExperienceButton() {
+    vrExperience.style.display = 'block';
+  }
+
+  function updateVRExperienceLink(choiceType) {
+    let vrUrl = TO_VR;
+    if (choiceType === 'positive') {
+      vrUrl += '?choice=positive';
+    } else if (choiceType === 'negative') {
+      vrUrl += '?choice=negative';
+    }
+    vrLaunch.href = vrUrl;
+    showVRExperienceButton();
+  }
+
+  // -------- VR SUPPORT ----------
+  async function checkXRSupport() {
+    if (navigator.xr) {
+      try {
+        const supported = await navigator.xr.isSessionSupported('immersive-vr');
+        if (supported) {
+          vrToggle.style.display = 'block';
+          return true;
+        }
+      } catch (e) {
+        console.warn('WebXR not supported:', e);
+      }
+    }
+    return false;
+  }
+
+  async function enterVR() {
+    if (!navigator.xr) {
+      showError('WebXR not supported in this browser');
+      return;
+    }
+
+    try {
+      xrSession = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+      });
+      
+      isVRMode = true;
+      vrToggle.textContent = 'Exit VR';
+      xrSession.addEventListener('end', onXRSessionEnded);
+      showError('VR Mode Active - Full implementation requires WebGL rendering');
+      
+    } catch (e) {
+      showError('Failed to enter VR: ' + e.message);
+    }
+  }
+
+  function exitVR() {
+    if (xrSession) {
+      xrSession.end();
+    }
+  }
+
+  function onXRSessionEnded() {
+    xrSession = null;
+    isVRMode = false;
+    vrToggle.textContent = 'Enter VR';
+  }
+
+  // -------- MAIN SEQUENCE ----------
+  async function startSequenceWithAudio(){
+    console.log("🎬 Starting video sequence...");
+    vid.muted = false;
+    
+    // Play Star Wars intro
+    await playStarWarsIntro();
+    
+    // Play intro video
+    sceneProgress.textContent = 'Scene 2/3';
+    await playUntilEnd(INTRO);
+    
+    // Play parking lot video
+    sceneProgress.textContent = 'Scene 3/3';
+    await playUntilEnd(PARKING);
+    
+    // Show choice interface
+    sceneProgress.style.display = 'none';
+    showChoice();
+  }
+
   // -------- INITIALIZATION ----------
   async function init() {
     try {
-      console.log('🔍 Checking assets...');
-      const assets = [INTRO, PARKING];
-      
-      for (const asset of assets) {
-        try {
-          const response = await fetch(asset, { method: 'HEAD' });
-          console.log(`${response.ok ? '✅' : '❌'} ${asset}`);
-        } catch (error) {
-          console.log(`❌ ${asset}`);
-        }
-      }
-      
-      // Initialize Star Wars intro
+      console.log("🚀 Initializing Vaporized 3D...");
+      initializeAudio();
+      await checkXRSupport();
       createStarfield();
-      
-      // Set up crawl completion handler
-      crawlContent.addEventListener('animationend', () => {
-        console.log('Crawl animation ended');
-        transitionToIntroVideo();
-      });
-      
-      // Set up skip button
-      skipIntro.addEventListener('click', () => {
-        console.log('Skip button clicked');
-        crawlContent.style.animation = 'none';
-        transitionToIntroVideo();
-      });
-      
-      // Hide loading screen
       setTimeout(hideLoading, 1000);
-      
-      console.log('Star Wars intro started');
-      
+      await startSequenceWithAudio();
     } catch(e) {
-      console.error('Init error:', e);
+      showError(e.message || String(e));
       hideLoading();
       starwarsIntro.style.display = 'none';
       showChoice();
@@ -656,16 +738,71 @@
   // -------- EVENT LISTENERS ----------
   window.addEventListener('load', init);
 
-  btnVR.addEventListener('click', () => {
-    document.getElementById('negativeConsequence').style.display = 'flex';
+  btnVR.addEventListener('click',  ()=> {
+    showConsequence(true);
+    updateVRExperienceLink('negative');
   });
   
-  btnNo.addEventListener('click', () => {
-    document.getElementById('positiveConsequence').style.display = 'flex';
+  btnNo.addEventListener('click',  ()=> {
+    showConsequence(false);
+    updateVRExperienceLink('positive');
   });
 
-  // Add your other event listeners here...
+  negativeContinue.addEventListener('click', () => {
+    hideConsequences();
+    fadeAndGo(TO_VR);
+    setTimeout(showContinueButton, 45000);
+  });
 
+  positiveContinue.addEventListener('click', () => {
+    hideConsequences();
+    fadeAndGo(TO_VR);
+    setTimeout(showContinueButton, 45000);
+  });
+
+  vrToggle.addEventListener('click', () => {
+    if (isVRMode) {
+      exitVR();
+    } else {
+      enterVR();
+    }
+  });
+
+  vrLaunch.addEventListener('click', (e) => {
+    e.preventDefault();
+    console.log('Launching VR experience with choice parameter');
+    fadeAndGo(vrLaunch.href);
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='1') showConsequence(true);
+    if(e.key==='2') showConsequence(false);
+    if(e.key==='3') goToClassroom();
+    if(e.key==='Escape' && starwarsIntro.style.display === 'block') {
+      starwarsIntro.style.display = 'none';
+      introMusic.pause();
+    }
+    if(e.key === 'v' || e.key === 'V') {
+      if (vrToggle.style.display !== 'none') {
+        if (isVRMode) exitVR();
+        else enterVR();
+      }
+    }
+  });
+
+  window.addEventListener('pageshow', function(event) {
+    if (sessionStorage.getItem('bodyJourneyCompleted')) {
+      showContinueButton();
+      sessionStorage.removeItem('bodyJourneyCompleted');
+    }
+  });
+
+  window.addEventListener('deviceorientation', function(e) {
+    if (isVRMode) {
+      console.log('Device orientation:', e.alpha, e.beta, e.gamma);
+    }
+  }, true);
 </script>
 </body>
 </html>
