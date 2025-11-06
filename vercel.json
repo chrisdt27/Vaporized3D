@@ -1,8 +1,39 @@
-{
-  "routes": [
+﻿{
+  "buildCommand": "git lfs install && git lfs pull && npm run build",
+  "installCommand": "git lfs install && npm install",
+  "outputDirectory": ".output/public",
+  "functions": {
+    "**/*.js": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
     {
-      "src": "/",
-      "dest": "/vaporized3D.html"
+      "source": "/(.*)\\.mp4",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "video/mp4"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.glb",
+      "headers": [
+        {
+          "key": "Content-Type", 
+          "value": "model/gltf-binary"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.mp3",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "audio/mpeg"
+        }
+      ]
     }
   ]
 }
