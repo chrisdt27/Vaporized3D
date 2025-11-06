@@ -12,8 +12,8 @@
 <link rel="preload" href="assets/audio/intro.mp3" as="audio">
 <link rel="preload" href="assets/audio/reward_cheer.mp3" as="audio">
 <link rel="preload" href="assets/audio/sad_crowd.mp3" as="audio">
-<link rel="preload" href="assets/00_intro_1080p24.mp4" as="video">
-<link rel="preload" href="assets/01_parking_offer_1080p24.mp4" as="video">
+<link rel="preload" href="assets/videos/00_intro_1080p24.mp4" as="video">
+<link rel="preload" href="assets/videos/01_parking_offer_1080p24.mp4" as="video">
 <style>
   :root {
     --bg:#000; --fg:#fff; --muted:#bbb;
@@ -333,7 +333,7 @@
   </div>
 
   <!-- Audio Elements - INCLUDES SAD CROWD -->
-  <audio id="introMusic" src="assets/audio/intro.mp3" preload="auto" autoplay loop></audio>
+  <audio id="introMusic" src="assets/audio/intro.mp3" preload="auto"></audio>
   <audio id="cheeringCrowd" src="assets/audio/reward_cheer.mp3" preload="auto"></audio>
   <audio id="sadCrowd" src="assets/audio/sad_crowd.mp3" preload="auto"></audio>
 
@@ -399,10 +399,17 @@
   <div id="err"></div>
 
 <script>
-  // -------- Paths (UPDATED FOR 3D OCULUS JOURNEYS) ----------
-  const INTRO      = 'assets/00_intro_1080p24.mp4';
-  const PARKING    = 'assets/01_parking_offer_1080p24.mp4';
-  const TO_VR      = 'journeys/mouth_Oculus.html'; // CHANGED TO MOUTH_OCULUS
+  // -------- CORRECTED PATHS FOR MEDIA FILES ----------
+  // Try different path combinations - adjust these based on your actual file structure
+  const INTRO      = 'assets/videos/00_intro_1080p24.mp4';      // Updated path
+  const PARKING    = 'assets/videos/01_parking_offer_1080p24.mp4'; // Updated path
+  
+  // Fallback paths if the above don't work
+  const INTRO_FALLBACK  = 'assets/00_intro_1080p24.mp4';      
+  const PARKING_FALLBACK = 'assets/01_parking_offer_1080p24.mp4';
+  
+  // 3D Journey paths
+  const TO_VR      = 'journeys/mouth_Oculus.html';
   const TO_CLASSROOM = '../vape_on_the_brain_vr/Classroom/classroom_scene.html';
 
   // -------- DOM ----------
@@ -436,7 +443,11 @@
   let sadAudioPlayed = false;
 
   // -------- Utils ----------
-  function showError(msg){ console.error(msg); errEl.textContent = msg; errEl.style.display='block'; }
+  function showError(msg){ 
+    console.error(msg); 
+    errEl.textContent = 'Media Error: ' + msg; 
+    errEl.style.display='block'; 
+  }
   
   function fadeAndGo(url){ 
     fadeEl.classList.remove('hidden');
@@ -467,13 +478,23 @@
     continueBtn.style.display = 'block';
   }
 
-  // -------- VR EXPERIENCE LINKING (UPDATED FOR 3D JOURNEYS) ----------
+  // -------- IMPROVED MEDIA LOADING SYSTEM ----------
+  function testMediaLoad(src) {
+    return new Promise((resolve, reject) => {
+      const test = new Audio();
+      test.src = src;
+      test.oncanplaythrough = () => resolve(true);
+      test.onerror = () => reject(new Error(`Failed to load: ${src}`));
+      test.load();
+    });
+  }
+
+  // -------- VR EXPERIENCE LINKING ----------
   function showVRExperienceButton() {
     vrExperience.style.display = 'block';
   }
 
   function updateVRExperienceLink(choiceType) {
-    // Update the VR experience link based on user choice
     let vrUrl = TO_VR;
     
     if (choiceType === 'positive') {
@@ -486,7 +507,6 @@
     showVRExperienceButton();
   }
 
-  // NEW: Function to navigate to specific 3D body journeys
   function navigateToBodyJourney(bodyPart) {
     let journeyUrl;
     switch(bodyPart) {
@@ -503,7 +523,6 @@
             journeyUrl = 'journeys/mouth_Oculus.html';
     }
     
-    // Add choice parameter if available
     const currentUrl = new URL(vrLaunch.href, window.location.origin);
     const choice = currentUrl.searchParams.get('choice');
     if (choice) {
@@ -513,24 +532,43 @@
     fadeAndGo(journeyUrl);
   }
 
-  // -------- AUDIO SYSTEM WITH BOTH POSITIVE AND NEGATIVE FEEDBACK ----------
+  // -------- IMPROVED AUDIO SYSTEM WITH ERROR HANDLING ----------
   function initializeAudio() {
     console.log("🎵 Initializing audio system...");
     
-    // Set up both audio elements
+    // Test audio file accessibility
+    const audioFiles = [
+      'assets/audio/intro.mp3',
+      'assets/audio/reward_cheer.mp3', 
+      'assets/audio/sad_crowd.mp3'
+    ];
+    
+    // Set up audio elements with error handling
     cheeringCrowd.volume = 0.8;
     sadCrowd.volume = 0.8;
+    
+    // Add error listeners to all audio elements
+    [introMusic, cheeringCrowd, sadCrowd].forEach(audio => {
+      audio.addEventListener('error', (e) => {
+        console.error(`Audio load error: ${audio.src}`, e);
+        showError(`Audio file not found: ${audio.src.split('/').pop()}`);
+      });
+      
+      audio.addEventListener('canplaythrough', () => {
+        console.log(`✅ Audio loaded: ${audio.src.split('/').pop()}`);
+      });
+    });
     
     // Preload both audio files
     cheeringCrowd.load();
     sadCrowd.load();
     
-    // Force intro music to play
+    // Force intro music to play with better error handling
     forceIntroMusicPlayback();
   }
 
   function forceIntroMusicPlayback() {
-    console.log("🔊 Forcing intro music playback...");
+    console.log("🔊 Attempting to play intro music...");
     
     introMusic.volume = 0.7;
     
@@ -538,36 +576,16 @@
       introMusic.play().then(() => {
         console.log("✅ Intro music playing automatically");
       }).catch(e => {
-        console.log("❌ Autoplay blocked, using fallback...");
-        createSilentInteraction();
+        console.log("❌ Autoplay blocked:", e.message);
+        // Don't show error for autoplay block - it's normal
+        if (!e.message.includes('user gesture')) {
+          showError('Audio playback failed: ' + e.message);
+        }
       });
     };
     
-    setTimeout(playIntro, 100);
-  }
-
-  function createSilentInteraction() {
-    const silentButton = document.createElement('button');
-    silentButton.style.cssText = 'position:absolute;opacity:0;width:1px;height:1px;z-index:-1;';
-    silentButton.textContent = 'silent';
-    document.body.appendChild(silentButton);
-    
-    setTimeout(() => {
-      silentButton.click();
-      console.log("🔄 Silent interaction triggered");
-      
-      setTimeout(() => {
-        introMusic.play().then(() => {
-          console.log("✅ Intro music playing after silent interaction");
-        }).catch(e => {
-          console.log("❌ Final audio failure, continuing without sound");
-        });
-      }, 100);
-      
-      setTimeout(() => {
-        document.body.removeChild(silentButton);
-      }, 1000);
-    }, 500);
+    // Wait a bit for page to fully load
+    setTimeout(playIntro, 1000);
   }
 
   // Play cheering crowd audio for positive choice
@@ -579,29 +597,13 @@
     cheeringCrowd.currentTime = 0;
     cheeringCrowd.volume = 0.8;
     
-    const playAttempt = cheeringCrowd.play();
-    
-    if (playAttempt !== undefined) {
-      playAttempt.then(() => {
-        console.log("✅ Cheering audio playing successfully!");
-        cheeringAudioPlayed = true;
-      }).catch(error => {
-        console.log("❌ Cheering audio blocked, will play on next interaction");
-        
-        const enableAudio = () => {
-          console.log("🖱️ User interaction detected, playing cheering audio");
-          cheeringCrowd.play().then(() => {
-            console.log("✅ Cheering audio playing after interaction!");
-            cheeringAudioPlayed = true;
-          }).catch(e => {
-            console.log("❌ Final cheering audio failure");
-          });
-          document.removeEventListener('click', enableAudio);
-        };
-        
-        document.addEventListener('click', enableAudio, { once: true });
-      });
-    }
+    cheeringCrowd.play().then(() => {
+      console.log("✅ Cheering audio playing successfully!");
+      cheeringAudioPlayed = true;
+    }).catch(error => {
+      console.log("❌ Cheering audio blocked:", error.message);
+      showError('Cheering audio failed - click to play');
+    });
   }
 
   // Play sad crowd audio for negative choice
@@ -613,44 +615,94 @@
     sadCrowd.currentTime = 0;
     sadCrowd.volume = 0.8;
     
-    const playAttempt = sadCrowd.play();
-    
-    if (playAttempt !== undefined) {
-      playAttempt.then(() => {
-        console.log("✅ Sad crowd audio playing successfully!");
-        sadAudioPlayed = true;
-      }).catch(error => {
-        console.log("❌ Sad audio blocked, will play on next interaction");
+    sadCrowd.play().then(() => {
+      console.log("✅ Sad crowd audio playing successfully!");
+      sadAudioPlayed = true;
+    }).catch(error => {
+      console.log("❌ Sad audio blocked:", error.message);
+      showError('Sad audio failed - click to play');
+    });
+  }
+
+  // -------- IMPROVED VIDEO PLAYBACK WITH FALLBACKS ----------
+  function playUntilEnd(src){
+    return new Promise((resolve, reject)=>{
+      let guard=null, ended=false;
+      let currentSrc = src;
+      let fallbackUsed = false;
+
+      function loadVideo(videoSrc) {
+        vid.src = videoSrc;
+        vid.loop = false;
         
-        const enableAudio = () => {
-          console.log("🖱️ User interaction detected, playing sad audio");
-          sadCrowd.play().then(() => {
-            console.log("✅ Sad crowd audio playing after interaction!");
-            sadAudioPlayed = true;
-          }).catch(e => {
-            console.log("❌ Final sad audio failure");
-          });
-          document.removeEventListener('click', enableAudio);
+        vid.onerror = () => {
+          if (!fallbackUsed && videoSrc === INTRO) {
+            console.log("🔄 Trying fallback path for intro video...");
+            currentSrc = INTRO_FALLBACK;
+            fallbackUsed = true;
+            loadVideo(INTRO_FALLBACK);
+          } else if (!fallbackUsed && videoSrc === PARKING) {
+            console.log("🔄 Trying fallback path for parking video...");
+            currentSrc = PARKING_FALLBACK;
+            fallbackUsed = true;
+            loadVideo(PARKING_FALLBACK);
+          } else {
+            cleanup();
+            reject(new Error(`Video failed to load: ${videoSrc}`));
+          }
         };
-        
-        document.addEventListener('click', enableAudio, { once: true });
-      });
-    }
+
+        const start = ()=>{
+          console.log(`✅ Video loaded: ${videoSrc.split('/').pop()}`);
+          const dur = Number.isFinite(vid.duration) && vid.duration>0 ? vid.duration : 75;
+          guard = setTimeout(()=>{ 
+            if(!ended){ 
+              console.log("⏰ Video guard timer triggered");
+              cleanup(); 
+              resolve(); 
+            } 
+          }, (dur+5)*1000);
+
+          vid.play()
+            .then(()=>{ 
+              vid.onended = ()=>{ 
+                ended=true; 
+                cleanup(); 
+                resolve(); 
+              }; 
+            })
+            .catch(err=>{ 
+              cleanup(); 
+              reject(err); 
+            });
+        };
+
+        vid.onloadedmetadata = start;
+        vid.oncanplay = start;
+        vid.load();
+      }
+
+      const cleanup = ()=>{ 
+        clearTimeout(guard); 
+        vid.onended=null; 
+        vid.oncanplay=null; 
+        vid.onloadedmetadata=null; 
+        vid.onerror=null;
+      };
+      
+      loadVideo(src);
+    });
   }
 
   // Show consequence overlay based on choice
   function showConsequence(isNegative) {
     if (isNegative) {
       negativeConsequence.style.display = 'flex';
-      // Update VR link for negative choice
       updateVRExperienceLink('negative');
-      // Play sad crowd for negative choice
       setTimeout(playSadCrowd, 300);
     } else {
       positiveConsequence.style.display = 'flex';
-      // Update VR link for positive choice
       updateVRExperienceLink('positive');
-      // Play cheering crowd for positive choice
       setTimeout(playCheeringCrowd, 300);
     }
   }
@@ -697,43 +749,6 @@
     return false;
   }
 
-  // Enter VR mode
-  async function enterVR() {
-    if (!navigator.xr) {
-      showError('WebXR not supported in this browser');
-      return;
-    }
-
-    try {
-      xrSession = await navigator.xr.requestSession('immersive-vr', {
-        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
-      });
-      
-      isVRMode = true;
-      vrToggle.textContent = 'Exit VR';
-      xrSession.addEventListener('end', onXRSessionEnded);
-      showError('VR Mode Active - Full implementation requires WebGL rendering');
-      
-    } catch (e) {
-      showError('Failed to enter VR: ' + e.message);
-    }
-  }
-
-  // Exit VR mode
-  function exitVR() {
-    if (xrSession) {
-      xrSession.end();
-    }
-  }
-
-  // Handle XR session end
-  function onXRSessionEnded() {
-    xrSession = null;
-    isVRMode = false;
-    vrToggle.textContent = 'Enter VR';
-    hideLoading();
-  }
-
   // Play Star Wars intro
   function playStarWarsIntro() {
     return new Promise((resolve) => {
@@ -757,51 +772,39 @@
     });
   }
 
-  // Play a src and resolve when it ends; guard timer for bad metadata
-  function playUntilEnd(src){
-    return new Promise((resolve, reject)=>{
-      let guard=null, ended=false;
-
-      vid.src = src;
-      vid.loop = false;
-      vid.onerror = ()=>reject(new Error('Video failed to load: ' + src));
-
-      const start = ()=>{
-        const dur = Number.isFinite(vid.duration) && vid.duration>0 ? vid.duration : 75;
-        guard = setTimeout(()=>{ if(!ended){ cleanup(); resolve(); } }, (dur+2)*1000);
-
-        vid.play()
-          .then(()=>{ vid.onended = ()=>{ ended=true; cleanup(); resolve(); }; })
-          .catch(err=>{ cleanup(); reject(err); });
-      };
-
-      const cleanup = ()=>{ clearTimeout(guard); vid.onended=null; vid.oncanplay=null; vid.onloadedmetadata=null; };
-      vid.onloadedmetadata = start;
-      vid.oncanplay = start;
-      vid.load();
-    });
-  }
-
   async function startSequenceWithAudio(){
     vid.muted = false;
     await playStarWarsIntro();
+    
+    console.log("🎬 Playing intro video...");
     await playUntilEnd(INTRO);
+    
+    console.log("🎬 Playing parking lot video...");
     await playUntilEnd(PARKING);
+    
     showChoice();
   }
 
   // Initialize the application
   async function init() {
     try {
+      console.log("🚀 Initializing Vaporized Experience...");
       initializeAudio();
       await checkXRSupport();
       createStarfield();
-      setTimeout(hideLoading, 1000);
+      
+      // Show loading for minimum time to ensure assets load
+      setTimeout(() => {
+        hideLoading();
+        console.log("✅ Loading complete, starting sequence...");
+      }, 2000);
+      
       await startSequenceWithAudio();
     } catch(e) {
+      console.error("💥 Initialization error:", e);
       showError(e.message || String(e));
       hideLoading();
-      showChoice();
+      showChoice(); // Still show choice even if videos fail
     }
   }
 
@@ -841,39 +844,54 @@
   // VR Experience Button
   vrLaunch.addEventListener('click', (e) => {
     e.preventDefault();
-    console.log('Launching 3D VR experience with choice parameter');
+    console.log('Launching 3D VR experience');
     fadeAndGo(vrLaunch.href);
   });
 
+  // Enter VR mode
+  async function enterVR() {
+    if (!navigator.xr) {
+      showError('WebXR not supported in this browser');
+      return;
+    }
+
+    try {
+      xrSession = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+      });
+      
+      isVRMode = true;
+      vrToggle.textContent = 'Exit VR';
+      xrSession.addEventListener('end', onXRSessionEnded);
+      
+    } catch (e) {
+      showError('Failed to enter VR: ' + e.message);
+    }
+  }
+
+  // Exit VR mode
+  function exitVR() {
+    if (xrSession) {
+      xrSession.end();
+    }
+  }
+
+  // Handle XR session end
+  function onXRSessionEnded() {
+    xrSession = null;
+    isVRMode = false;
+    vrToggle.textContent = 'Enter VR';
+  }
+
   // Keyboard shortcuts
   window.addEventListener('keydown', (e)=>{
-    if(e.key==='1') {
-      showConsequence(true);
-    }
-    if(e.key==='2') {
-      showConsequence(false);
-    }
+    if(e.key==='1') showConsequence(true);
+    if(e.key==='2') showConsequence(false);
     if(e.key==='3') goToClassroom();
     if(e.key==='Escape' && starwarsIntro.style.display === 'block') {
       starwarsIntro.style.display = 'none';
       introMusic.pause();
     }
-    if(e.key === 'v' || e.key === 'V') {
-      if (vrToggle.style.display !== 'none') {
-        if (isVRMode) {
-          exitVR();
-        } else {
-          enterVR();
-        }
-      }
-    }
-    if(e.key === 'r' || e.key === 'R') {
-      // Quick access to VR experience
-      if (vrExperience.style.display !== 'none') {
-        vrLaunch.click();
-      }
-    }
-    // NEW: Keyboard shortcuts for body journeys
     if(e.key === 'm' || e.key === 'M') navigateToBodyJourney('mouth');
     if(e.key === 'b' || e.key === 'B') navigateToBodyJourney('bronchi');
     if(e.key === 'l' || e.key === 'L') navigateToBodyJourney('lungs');
@@ -886,13 +904,6 @@
       sessionStorage.removeItem('bodyJourneyCompleted');
     }
   });
-
-  // Handle device orientation for mobile VR
-  window.addEventListener('deviceorientation', function(e) {
-    if (isVRMode) {
-      console.log('Device orientation:', e.alpha, e.beta, e.gamma);
-    }
-  }, true);
 </script>
 </body>
 </html>
