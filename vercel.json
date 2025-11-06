@@ -1,7 +1,7 @@
 ﻿{
-  "buildCommand": "git lfs install && git lfs pull && npm run build",
-  "installCommand": "git lfs install && npm install",
-  "outputDirectory": ".output/public",
+  "buildCommand": "git lfs install && git lfs pull",
+  "installCommand": "git lfs install",
+  "outputDirectory": ".",
   "functions": {
     "**/*.js": {
       "maxDuration": 30
@@ -34,6 +34,12 @@
           "value": "audio/mpeg"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/vaporized3D.html"
     }
   ]
 }
